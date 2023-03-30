@@ -34,6 +34,8 @@ pub enum Command {
     TrackDevices,
     /// Lists available server features.
     HostFeatures,
+    /// Pushes 'filename' to the 'path' on device
+    Push { filename: String, path: String },
     /// Run 'command' in a shell on the device, and return its output and error streams.
     Shell { command: Vec<String> },
     /// Reboots the device
@@ -98,6 +100,9 @@ fn main() -> Result<(), RustADBError> {
             };
             println!("Live list of devices attached");
             connexion.track_devices(callback)?;
+        }
+        Command::Push { filename, path } => {
+            connexion.push(opt.serial, filename, path)?;
         }
         Command::Shell { command } => {
             if command.is_empty() {
