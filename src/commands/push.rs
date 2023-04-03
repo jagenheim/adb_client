@@ -6,11 +6,9 @@ use crate::{
     AdbTcpConnexion, Result, RustADBError,
 };
 
-
 impl AdbTcpConnexion {
-    pub fn sync<S: ToString + Clone>(
-        &mut self,
-        serial: Option<S>,
-        command: impl IntoIterator<Item = S>,
+    /// Pushes
+    pub fn sync<S: ToString>(&mut self, serial: Option<S>, filename: S, path: S) -> Result<()> {}
     ) -> Result<()> {
     }
+}
