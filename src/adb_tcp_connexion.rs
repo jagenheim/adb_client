@@ -1,3 +1,4 @@
+use byteorder::{ByteOrder, LittleEndian};
 use std::{
     io::{Read, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpStream},
@@ -6,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    models::{AdbCommand, AdbRequestStatus},
+    models::{AdbCommand, AdbRequestStatus, SyncCommand},
     Result, RustADBError,
 };
 
@@ -92,6 +93,71 @@ impl AdbTcpConnexion {
             }
             AdbRequestStatus::Okay => Ok(()),
         }
+    }
+
+    /// Sends the given [SyncCommand] to ADB server, and checks that the request has been taken in consideration.
+    /// If an error occured, something will be returned? TODO
+    pub(crate) fn send_sync_request(
+        tcp_stream: &mut TcpStream,
+        command: SyncCommand,
+    ) -> Result<()> {
+        let mut len_buf = [0_u8; 4];
+        match command {
+            SyncCommand::List(x)
+            | SyncCommand::Recv(x, _)
+            | SyncCommand::Send(x, _)
+            | SyncCommand::Stat(x) => LittleEndian::write_u32(&mut len_buf, x.len() as u32),
+        };
+
+        // First send 8 byte common header
+        tcp_stream.write_all(command.to_string().as_bytes())?;
+        tcp_stream.write_all(&len_buf)?;
+
+        // Then send specific content
+        match command {
+            SyncCommand::List(a) => Self::handle_list_command(a),
+            SyncCommand::Recv(a, b) => Self::handle_recv_command(a, b),
+            SyncCommand::Send(a, b) => Self::handle_send_command(a, b),
+            SyncCommand::Stat(a) => Self::handle_stat_command(a),
+        }
+
+        // Reads returned status code from ADB server
+        let mut request_status = [0; 4];
+        tcp_stream.read_exact(&mut request_status)?;
+
+        match AdbRequestStatus::from_str(str::from_utf8(request_status.as_ref())?)? {
+            AdbRequestStatus::Fail => {
+                // We can keep reading to get further details
+                let length = Self::get_body_length(tcp_stream)?;
+
+                let mut body = vec![
+                    0;
+                    length
+                        .try_into()
+                        .map_err(|_| RustADBError::ConvertionError)?
+                ];
+                if length > 0 {
+                    tcp_stream.read_exact(&mut body)?;
+                }
+
+                Err(RustADBError::ADBRequestFailed(String::from_utf8(body)?))
+            }
+            AdbRequestStatus::Okay => Ok(()),
+        }
+    }
+
+    fn handle_list_command(_: &str) {
+        // List sends the string of the directory to list, and then the server sends a list of files
+        todo!()
+    }
+    fn handle_recv_command(_: &str, _: String) {
+        todo!()
+    }
+    fn handle_send_command(_: &str, _: String) {
+        todo!()
+    }
+    fn handle_stat_command(_: &str) {
+        todo!()
     }
 
     pub(crate) fn get_body_length(tcp_stream: &mut TcpStream) -> Result<u32> {
