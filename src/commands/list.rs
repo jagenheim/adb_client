@@ -4,8 +4,8 @@ use crate::{
 };
 
 impl AdbTcpConnexion {
-    /// Pushes [filename] to [path] on the device.
-    pub fn push<S: ToString>(&mut self, serial: Option<S>, filename: S, path: S) -> Result<()> {
+    /// Lists files in [path] on the device.
+    pub fn list<S: ToString>(&mut self, serial: Option<S>, path: S) -> Result<()> {
         self.new_connection()?;
 
         match serial {
@@ -19,8 +19,8 @@ impl AdbTcpConnexion {
         // Set device in SYNC mode
         Self::send_adb_request(&mut self.tcp_stream, AdbCommand::Sync)?;
 
-        // Send a send command
-        self.send_sync_request(SyncCommand::Send(&filename.to_string(), path.to_string()))?;
+        // Send a list command
+        self.send_sync_request(SyncCommand::List(&path.to_string()))?;
 
         Ok(())
     }

@@ -1,6 +1,7 @@
 mod devices;
 mod host_features;
 mod kill;
+mod list;
 mod push;
 mod reboot;
 mod shell;
