@@ -5,12 +5,7 @@ use crate::{
 
 impl AdbTcpConnexion {
     /// Pushes [filename] to [path] on the device.
-    pub fn push_command<S: ToString>(
-        &mut self,
-        serial: Option<S>,
-        filename: S,
-        path: S,
-    ) -> Result<()> {
+    pub fn push<S: ToString>(&mut self, serial: Option<S>, filename: S, path: S) -> Result<()> {
         self.new_connection()?;
 
         match serial {
@@ -34,7 +29,7 @@ impl AdbTcpConnexion {
     }
 
     /// Lists files in [path] on the device.
-    pub fn list_command<S: ToString>(&mut self, serial: Option<S>, path: S) -> Result<()> {
+    pub fn list<S: ToString>(&mut self, serial: Option<S>, path: S) -> Result<()> {
         self.new_connection()?;
 
         match serial {

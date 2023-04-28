@@ -115,7 +115,7 @@ impl AdbTcpConnexion {
 
         // Then send specific content
         match command {
-            SyncCommand::List(a) => Self::handle_list_command(a),
+            SyncCommand::List(a) => Self::handle_list_command(tcp_stream, a)?,
             SyncCommand::Recv(a, b) => Self::handle_recv_command(a, b),
             SyncCommand::Send(a, b) => Self::handle_send_command(a, b),
             SyncCommand::Stat(a) => Self::handle_stat_command(a),
@@ -146,10 +146,38 @@ impl AdbTcpConnexion {
         }
     }
 
-    fn handle_list_command(_: &str) {
+    fn handle_list_command(tcp_stream: &mut TcpStream, path: &str) -> Result<()> {
         // List sends the string of the directory to list, and then the server sends a list of files
-        todo!()
+        tcp_stream.write_all(path.to_string().as_bytes())?;
+
+        // Reads returned status code from ADB server
+        let mut response = [0_u8; 4];
+        loop {
+            tcp_stream.read_exact(&mut response)?;
+            match str::from_utf8(response.as_ref())? {
+                "DENT" => {
+                    // TODO: Move this to a struct that extract this data
+                    let mut file_mod = [0_u8; 4];
+                    let mut file_size = [0_u8; 4];
+                    let mut mod_time = [0_u8; 4];
+                    let mut name_len = [0_u8; 4];
+                    tcp_stream.read_exact(&mut file_mod)?;
+                    tcp_stream.read_exact(&mut file_size)?;
+                    tcp_stream.read_exact(&mut mod_time)?;
+                    tcp_stream.read_exact(&mut name_len)?;
+                    let name_len = LittleEndian::read_u32(&name_len);
+                    let mut name_buf = vec![0_u8; name_len as usize];
+                    tcp_stream.read_exact(&mut name_buf)?;
+                }
+                "DONE" => {
+                    println!("We are done");
+                    return Ok(());
+                }
+                x => println!("Unknown response {}", x),
+            }
+        }
     }
+
     fn handle_recv_command(_: &str, _: String) {
         todo!()
     }
