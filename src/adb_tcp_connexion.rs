@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
     str,
     str::FromStr,
+    time::SystemTime,
 };
 
 use crate::{
@@ -178,15 +179,30 @@ impl AdbTcpConnexion {
 
         // Then we send the byte data in chunks of up to 64k
         // Chunk looks like 'DATA' <length> <data>
-        for chunk in File::open(Path::new(from)).unwrap().chunks(64 * 1024) {
+        let mut file = File::open(Path::new(from)).unwrap();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let bytes_read = file.read(&mut buffer)?;
+            if bytes_read == 0 {
+                break;
+            }
             let mut chunk_len_buf = [0_u8; 4];
-            LittleEndian::write_u32(&mut chunk_len_buf, chunk.len() as u32);
+            LittleEndian::write_u32(&mut chunk_len_buf, bytes_read as u32);
             self.tcp_stream.write_all(b"DATA")?;
             self.tcp_stream.write_all(&chunk_len_buf)?;
-            self.tcp_stream.write_all(&chunk)?;
+            self.tcp_stream.write_all(&buffer[..bytes_read])?;
         }
 
         // When we are done sending, we send 'DONE' <last modified time>
+        // Re-use len_buf to send the last modified time
+        let metadata = std::fs::metadata(Path::new(from))?;
+        let last_modified = match metadata.modified()?.duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(n) => n,
+            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+        };
+        LittleEndian::write_u32(&mut len_buf, last_modified.as_secs() as u32);
+        self.tcp_stream.write_all(b"DONE")?;
+        self.tcp_stream.write_all(&len_buf)?;
 
         // We expect 'OKAY' response from this
 
