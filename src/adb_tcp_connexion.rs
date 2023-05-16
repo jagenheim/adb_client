@@ -205,8 +205,28 @@ impl AdbTcpConnexion {
         self.tcp_stream.write_all(&len_buf)?;
 
         // We expect 'OKAY' response from this
+        let mut request_status = [0; 4];
+        self.tcp_stream.read_exact(&mut request_status)?;
 
-        Ok(())
+        match AdbRequestStatus::from_str(str::from_utf8(request_status.as_ref())?)? {
+            AdbRequestStatus::Fail => {
+                // We can keep reading to get further details
+                let length = Self::get_body_length(&mut self.tcp_stream)?;
+
+                let mut body = vec![
+                    0;
+                    length
+                        .try_into()
+                        .map_err(|_| RustADBError::ConvertionError)?
+                ];
+                if length > 0 {
+                    self.tcp_stream.read_exact(&mut body)?;
+                }
+
+                Err(RustADBError::ADBRequestFailed(String::from_utf8(body)?))
+            }
+            AdbRequestStatus::Okay => Ok(()),
+        }
     }
 
     fn handle_stat_command(_: &str) {
