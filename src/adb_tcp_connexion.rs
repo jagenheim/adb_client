@@ -105,9 +105,9 @@ impl AdbTcpConnexion {
         // Send specific data depending on command
         match command {
             SyncCommand::List(a) => self.handle_list_command(a)?,
-            SyncCommand::Recv(a, b) => Self::handle_recv_command(a, b),
+            SyncCommand::Recv(a, b) => self.handle_recv_command(a, b)?,
             SyncCommand::Send(a, b) => self.handle_send_command(a, b)?,
-            SyncCommand::Stat(a) => Self::handle_stat_command(a),
+            //SyncCommand::Stat(a) => Self::handle_stat_command(a),
         }
 
         Ok(())
@@ -155,8 +155,42 @@ impl AdbTcpConnexion {
         }
     }
 
-    fn handle_recv_command(_: &str, _: String) {
-        todo!()
+    fn handle_recv_command(&mut self, from: &str, to: String) -> Result<()> {
+        // First send 8 byte common header
+        let mut len_buf = [0_u8; 4];
+        LittleEndian::write_u32(&mut len_buf, to.len() as u32);
+        self.tcp_stream
+            .write_all(SyncCommand::Recv(from, to.clone()).to_string().as_bytes())?;
+        self.tcp_stream.write_all(&len_buf)?;
+        self.tcp_stream.write_all(to.as_bytes())?;
+
+        // Then we receive the byte data in chunks of up to 64k
+        // Chunk looks like 'DATA' <length> <data>
+        let mut output = File::create(Path::new(&to)).unwrap();
+        // Should this be Boxed?
+        let mut buffer = [0_u8; 64 * 1024];
+        let mut data_header = [0_u8; 4]; // DATA
+        let mut len_header = [0_u8; 4]; // <len>
+        loop {
+            self.tcp_stream.read_exact(&mut data_header)?;
+            // Check if data_header is DATA or DONE
+            if data_header.eq(b"DATA") {
+                self.tcp_stream.read_exact(&mut len_header)?;
+                let length: usize = LittleEndian::read_u32(&mut len_header).try_into().unwrap();
+                self.tcp_stream.read_exact(&mut buffer[..length])?;
+                output.write_all(&buffer)?;
+            } else if data_header.eq(b"DONE") {
+                // We're done here
+                break;
+            } else if data_header.eq(b"FAIL") {
+                panic!("We got FAIL back. Not really handled. Sorry");
+            } else {
+                panic!("Unknown response from device {:#?}", data_header);
+            }
+        }
+
+        // Connection should've left SYNC by now
+        Ok(())
     }
 
     fn handle_send_command(&mut self, from: &str, to: String) -> Result<()> {
@@ -229,9 +263,9 @@ impl AdbTcpConnexion {
         }
     }
 
-    fn handle_stat_command(_: &str) {
-        todo!()
-    }
+    //fn handle_stat_command(_: &str) {
+    //    todo!()
+    //}
 
     pub(crate) fn get_body_length(tcp_stream: &mut TcpStream) -> Result<u32> {
         let mut length = [0; 4];

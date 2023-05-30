@@ -7,8 +7,8 @@ pub enum SyncCommand<'a> {
     /// Send a file to the device
     /// TODO: Instead of having a String, use a IO trait
     Send(&'a str, String),
-    /// Stat a file
-    Stat(&'a str),
+    // Stat a file
+    //Stat(&'a str),
 }
 
 impl ToString for SyncCommand<'_> {
@@ -17,7 +17,7 @@ impl ToString for SyncCommand<'_> {
             SyncCommand::List(_) => "LIST",
             SyncCommand::Recv(_, _) => "RECV",
             SyncCommand::Send(_, _) => "SEND",
-            SyncCommand::Stat(_) => "STAT",
+            //SyncCommand::Stat(_) => "STAT",
         }
         .to_string()
     }
