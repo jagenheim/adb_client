@@ -158,11 +158,12 @@ impl AdbTcpConnexion {
     fn handle_recv_command(&mut self, from: &str, to: String) -> Result<()> {
         // First send 8 byte common header
         let mut len_buf = [0_u8; 4];
-        LittleEndian::write_u32(&mut len_buf, to.len() as u32);
+        LittleEndian::write_u32(&mut len_buf, from.len() as u32);
+        // FIXME: Must be a better way to handle retrieving the name of the command than this
         self.tcp_stream
             .write_all(SyncCommand::Recv(from, to.clone()).to_string().as_bytes())?;
         self.tcp_stream.write_all(&len_buf)?;
-        self.tcp_stream.write_all(to.as_bytes())?;
+        self.tcp_stream.write_all(from.as_bytes())?;
 
         // Then we receive the byte data in chunks of up to 64k
         // Chunk looks like 'DATA' <length> <data>
@@ -183,7 +184,13 @@ impl AdbTcpConnexion {
                 // We're done here
                 break;
             } else if data_header.eq(b"FAIL") {
-                panic!("We got FAIL back. Not really handled. Sorry");
+                // Handle fail
+                self.tcp_stream.read_exact(&mut len_header)?;
+                let length: usize = LittleEndian::read_u32(&mut len_header).try_into().unwrap();
+                self.tcp_stream.read_exact(&mut buffer[..length])?;
+                Err(RustADBError::ADBRequestFailed(String::from_utf8(
+                    buffer[..length].to_vec(),
+                )?))?;
             } else {
                 panic!("Unknown response from device {:#?}", data_header);
             }
